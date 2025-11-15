@@ -11,13 +11,17 @@ export function usePrometheusMetrics() {
     const metricConfigs: MetricConfig[] = [
       config.metrics.requestsTotal,
       config.metrics.connectionsActive,
+      config.metrics.timeSeriesCount,
+      config.metrics.httpRequestDurationP95,
+      config.metrics.gcDurationP95,
     ];
 
     const promises = metricConfigs.map(async (metricConfig) => {
-      const { value, error } = await fetchMetric(config.prometheus.url, metricConfig);
+      const { value, quantiles, error } = await fetchMetric(config.prometheus.url, metricConfig);
       return {
         config: metricConfig,
         value,
+        quantiles,
         error,
         lastUpdated: Date.now(),
       } as MetricValue;

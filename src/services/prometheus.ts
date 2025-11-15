@@ -33,8 +33,53 @@ export async function queryPrometheus(
 export async function fetchMetric(
   url: string,
   config: MetricConfig
-): Promise<{ value: number | null; error: string | null }> {
+): Promise<{ 
+  value: number | null; 
+  quantiles?: Array<{ quantile: number; value: number }>;
+  error: string | null 
+}> {
   try {
+    // If this is a histogram or summary with quantiles, fetch all quantiles
+    if ((config.type === "histogram" || config.type === "summary") && config.quantiles) {
+      const quantilePromises = config.quantiles.map(async (q) => {
+        try {
+          // Build query for this quantile - more precise regex replacement
+          let quantileQuery: string;
+          if (config.type === "histogram") {
+            // Replace the quantile number (e.g., 0.95) with the new quantile
+            // Match: histogram_quantile(0.95, ...) or histogram_quantile( 0.95 , ...)
+            quantileQuery = config.query.replace(
+              /histogram_quantile\(\s*[\d.]+\s*,/,
+              `histogram_quantile(${q},`
+            );
+          } else {
+            // Replace the quantile number for summary
+            quantileQuery = config.query.replace(
+              /quantile\(\s*[\d.]+\s*,/,
+              `quantile(${q},`
+            );
+          }
+          
+          console.log(`Fetching quantile ${q} with query: ${quantileQuery}`);
+          const value = await queryPrometheus(url, quantileQuery);
+          return { quantile: q, value: value ?? null };
+        } catch (error) {
+          console.error(`Error fetching quantile ${q}:`, error);
+          return { quantile: q, value: null };
+        }
+      });
+      
+      const quantiles = await Promise.all(quantilePromises);
+      const validQuantiles = quantiles.filter(q => q.value !== null);
+      
+      return { 
+        value: validQuantiles.length > 0 ? validQuantiles[validQuantiles.length - 1]?.value ?? null : null,
+        quantiles: validQuantiles,
+        error: validQuantiles.length === 0 ? "No quantile data available" : null
+      };
+    }
+    
+    // For regular metrics, just fetch the single value
     const value = await queryPrometheus(url, config.query);
     return { value, error: null };
   } catch (error) {

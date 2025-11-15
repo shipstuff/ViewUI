@@ -54,6 +54,12 @@ export function MetricCard({ metric, isSelected }: MetricCardProps) {
       {metric.config.type === "gauge" && metric.value !== null && !metric.error && (
         <GaugeBar value={metric.value} />
       )}
+      {(metric.config.type === "histogram" || metric.config.type === "summary") && 
+       metric.quantiles && 
+       metric.quantiles.length > 0 && 
+       !metric.error && (
+        <QuantileDisplay quantiles={metric.quantiles} />
+      )}
     </box>
   );
 }
@@ -75,6 +81,30 @@ function GaugeBar({ value }: { value: number }) {
           }}
         />
       </box>
+    </box>
+  );
+}
+
+function QuantileDisplay({ quantiles }: { quantiles: Array<{ quantile: number; value: number }> }) {
+  return (
+    <box marginTop={1} flexDirection="column" gap={0.3}>
+      {quantiles.map(({ quantile, value }) => {
+        const percentile = Math.round(quantile * 100);
+        const formattedValue = value < 1 
+          ? `${(value * 1000).toFixed(0)}ms` 
+          : `${value.toFixed(2)}s`;
+        
+        return (
+          <box key={quantile} flexDirection="row" justifyContent="space-between">
+            <text attributes={TextAttributes.DIM} style={{ fontSize: 0.8 }}>
+              p{percentile}:
+            </text>
+            <text style={{ fontSize: 0.8 }}>
+              {formattedValue}
+            </text>
+          </box>
+        );
+      })}
     </box>
   );
 }
