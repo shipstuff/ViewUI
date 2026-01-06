@@ -1,0 +1,18 @@
+# viewui configuration
+
+# Prometheus server connection
+prometheus:
+  url: http://localhost:9090
+  # username: optional
+  # password: optional
+  timeout: 10000
+
+# Dashboard to load
+dashboard:
+  path: ./dashboards/example.json
+
+# Refresh interval in milliseconds
+refreshInterval: 500
+
+# Default time range for queries
+timeRange: 5m

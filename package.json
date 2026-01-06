@@ -1,0 +1,34 @@
+{
+  "name": "viewui",
+  "version": "0.1.0",
+  "description": "Terminal-native metrics dashboard",
+  "module": "src/index.tsx",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.tsx",
+    "dev": "bun --watch run src/index.tsx",
+    "typecheck": "tsc --noEmit",
+    "test:exporter": "bun run test/fake-exporter.ts",
+    "test:prom": "sudo docker compose up -d prometheus",
+    "test:prom:logs": "sudo docker compose logs -f prometheus",
+    "test:prom:down": "sudo docker compose down",
+    "test:stack": "sudo docker compose up -d",
+    "test:stack:logs": "sudo docker compose logs -f",
+    "test:stack:down": "sudo docker compose down"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.7"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.69",
+    "@opentui/react": "^0.1.69",
+    "asciichart": "^1.5.25",
+    "react": "^19.2.3",
+    "yaml": "^2.8.2"
+  }
+}
