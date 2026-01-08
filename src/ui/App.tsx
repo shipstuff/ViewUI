@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useKeyboard } from "@opentui/react";
+import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { Header } from "./Header.tsx";
 import { PanelGrid } from "./PanelGrid.tsx";
 import { WarningsBar } from "./WarningsBar.tsx";
@@ -18,6 +18,15 @@ interface AppProps {
   onExit: () => void;
 }
 
+/**
+ * Calculate responsive column count (must match PanelGrid logic)
+ */
+function getResponsiveColumns(width: number): number {
+  if (width < 80) return 1;
+  if (width < 150) return 2;
+  return 3;
+}
+
 export function App({ store, config, onExit }: AppProps) {
   const [state, setState] = useState<DashboardState>(store.getState());
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -25,6 +34,9 @@ export function App({ store, config, onExit }: AppProps) {
   const [panelFocused, setPanelFocused] = useState(false);
   const [showDashboardPicker, setShowDashboardPicker] = useState(false);
   const [variableBarActive, setVariableBarActive] = useState(false);
+  
+  // Get terminal dimensions for responsive navigation
+  const { width: terminalWidth } = useTerminalDimensions();
 
   // Subscribe to store updates
   useEffect(() => {
@@ -101,11 +113,14 @@ export function App({ store, config, onExit }: AppProps) {
       return;
     }
 
-    // Navigation (only when not in focus mode)
+    // Navigation (only when not in focus mode or other modals)
+    if (panelFocused || showDashboardPicker || variableBarActive) return;
+    
     const panelCount = state.panels.length;
     if (panelCount === 0) return;
 
-    const columns = 2;
+    // Use responsive column count matching PanelGrid
+    const columns = getResponsiveColumns(terminalWidth);
     const row = Math.floor(focusedIndex / columns);
     const col = focusedIndex % columns;
     const totalRows = Math.ceil(panelCount / columns);
@@ -257,7 +272,7 @@ export function App({ store, config, onExit }: AppProps) {
 
       {/* Panel grid */}
       {state.panels.length > 0 ? (
-        <PanelGrid columns={2}>
+        <PanelGrid>
           {state.panels.map((panelData, index) => renderPanel(panelData, index))}
         </PanelGrid>
       ) : (

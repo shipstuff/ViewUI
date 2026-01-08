@@ -1,6 +1,8 @@
 import React from "react";
 import { TextAttributes } from "@opentui/core";
 import { Panel } from "../Panel.tsx";
+import { BigValue } from "../charts/BigValue.tsx";
+import { PercentageBar } from "../charts/PercentageBar.tsx";
 import { getThresholdColor } from "../thresholds.ts";
 import type { PanelData } from "../../store/dashboard-store.ts";
 import type { DashboardStore } from "../../store/dashboard-store.ts";
@@ -30,7 +32,7 @@ function formatLargeValue(value: number): string {
   if (Number.isInteger(value)) {
     return value.toString();
   }
-  return value.toFixed(2);
+  return value.toFixed(1);
 }
 
 /**
@@ -72,7 +74,6 @@ function getTrendDisplay(trend: "up" | "down" | "stable"): { arrow: string; colo
   }
 }
 
-
 export function StatRenderer({ data, store, focused = false }: StatRendererProps) {
   const { panel, results, error } = data;
 
@@ -111,21 +112,43 @@ export function StatRenderer({ data, store, focused = false }: StatRendererProps
   const { arrow, color: trendColor } = getTrendDisplay(trend);
   const valueColor = getThresholdColor(currentValue, panel.thresholds);
   const formattedValue = formatLargeValue(currentValue);
+  
+  // Check if this is a percentage value (0-100 range and title suggests percentage)
+  const isPercentage = (
+    panel.title.toLowerCase().includes("%") || 
+    panel.title.toLowerCase().includes("percent") ||
+    panel.title.toLowerCase().includes("usage")
+  ) && currentValue >= 0 && currentValue <= 100;
 
   return (
     <Panel title={panel.title} focused={focused}>
-      <box flexDirection="column" alignItems="center" justifyContent="center">
-        {/* Large value display */}
+      <box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1}>
+        {/* Large ASCII art value - using "block" font for readability */}
         <box marginBottom={1}>
-          <text attributes={TextAttributes.BOLD} fg={valueColor}>
-            {formattedValue}
-          </text>
-          <text fg={trendColor}> {arrow}</text>
+          <BigValue 
+            value={formattedValue} 
+            color={valueColor}
+            font="block"
+          />
         </box>
+
+        {/* Percentage bar for percentage values */}
+        {isPercentage && (
+          <box marginBottom={1}>
+            <PercentageBar
+              value={currentValue}
+              width={30}
+              showLabel={false}
+              lowThreshold={panel.thresholds?.steps?.[1]?.value ?? 70}
+              highThreshold={panel.thresholds?.steps?.[2]?.value ?? 90}
+            />
+          </box>
+        )}
 
         {/* Trend indicator */}
         <box>
-          <text fg="#666666">
+          <text attributes={TextAttributes.BOLD} fg={trendColor}>{arrow} </text>
+          <text fg="#888888">
             {trend === "up" ? "increasing" : trend === "down" ? "decreasing" : "stable"}
           </text>
         </box>

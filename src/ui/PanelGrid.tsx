@@ -1,19 +1,34 @@
 import React from "react";
+import { useTerminalDimensions } from "@opentui/react";
 
 interface PanelGridProps {
   children: React.ReactNode;
   columns?: number;
 }
 
+/**
+ * Calculate optimal column count based on terminal width
+ */
+function getResponsiveColumns(width: number): number {
+  if (width < 80) return 1;
+  if (width < 150) return 2;
+  return 3;
+}
+
 export function PanelGrid({
   children,
-  columns = 2,
+  columns,
 }: PanelGridProps) {
+  const { width } = useTerminalDimensions();
+  
+  // Use provided columns or calculate responsive columns
+  const effectiveColumns = columns ?? getResponsiveColumns(width);
+  
   const childArray = React.Children.toArray(children);
   const rows: React.ReactNode[][] = [];
 
-  for (let i = 0; i < childArray.length; i += columns) {
-    rows.push(childArray.slice(i, i + columns));
+  for (let i = 0; i < childArray.length; i += effectiveColumns) {
+    rows.push(childArray.slice(i, i + effectiveColumns));
   }
 
   return (

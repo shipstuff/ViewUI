@@ -1,6 +1,9 @@
 import React from "react";
 import { TextAttributes } from "@opentui/core";
+import { useTerminalDimensions } from "@opentui/react";
 import { Sparkline } from "./charts/Sparkline.tsx";
+import { BigValue } from "./charts/BigValue.tsx";
+import { getThresholdColor } from "./thresholds.ts";
 import type { PanelData } from "../store/dashboard-store.ts";
 import type { DashboardStore } from "../store/dashboard-store.ts";
 import type { TimeSeries } from "../prometheus/types.ts";
@@ -47,6 +50,28 @@ function formatValue(value: number): string {
 }
 
 /**
+ * Format for big display
+ */
+function formatLargeValue(value: number): string {
+  if (Math.abs(value) >= 1e12) {
+    return `${(value / 1e12).toFixed(1)}T`;
+  }
+  if (Math.abs(value) >= 1e9) {
+    return `${(value / 1e9).toFixed(1)}G`;
+  }
+  if (Math.abs(value) >= 1e6) {
+    return `${(value / 1e6).toFixed(1)}M`;
+  }
+  if (Math.abs(value) >= 1e3) {
+    return `${(value / 1e3).toFixed(1)}K`;
+  }
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+  return value.toFixed(1);
+}
+
+/**
  * Get legend from series labels
  */
 function getLegend(series: TimeSeries): string {
@@ -72,6 +97,13 @@ function getLegend(series: TimeSeries): string {
 
 export function FocusedPanel({ data, store }: FocusedPanelProps) {
   const { panel, results, error } = data;
+  const { width: terminalWidth, height: terminalHeight } = useTerminalDimensions();
+
+  // Calculate chart dimensions - fill most of the available space
+  // Reserve space for: border (2), padding (2), axis labels (6)
+  const chartWidth = Math.max(60, terminalWidth - 12);
+  // Reserve space for: header (2), stats (2), query info (5), borders/padding (8)
+  const chartHeight = Math.max(10, terminalHeight - 18);
 
   // Collect all series
   const allSeries: TimeSeries[] = [];
@@ -85,6 +117,9 @@ export function FocusedPanel({ data, store }: FocusedPanelProps) {
   const primaryStats = primarySeries ? calculateStats(primarySeries) : null;
   const chartData = primarySeries?.samples.map((s) => s.value) ?? [];
 
+  // Suppress unused store warning - store is available for future use
+  void store;
+
   return (
     <box
       flexDirection="column"
@@ -92,6 +127,7 @@ export function FocusedPanel({ data, store }: FocusedPanelProps) {
       height="100%"
       borderStyle="rounded"
       borderColor="#00ffff"
+      backgroundColor="#0a1a1a"
       padding={1}
     >
       {/* Header */}
@@ -116,36 +152,26 @@ export function FocusedPanel({ data, store }: FocusedPanelProps) {
         </box>
       )}
 
-      {/* Timeseries view */}
+      {/* Timeseries view - chart fills the screen */}
       {!error && primarySeries && panel.type === "timeseries" && (
         <box flexDirection="column" flexGrow={1}>
-          {/* Large current value */}
-          <box marginBottom={1}>
-            <text fg="#666666">Current: </text>
-            <text attributes={TextAttributes.BOLD} fg="#00ff00">
-              {formatValue(primaryStats!.current)}
-            </text>
-          </box>
-
-          {/* Large sparkline chart */}
-          <Sparkline
-            data={chartData}
-            height={8}
-            width={70}
-            color="#00ffff"
-          />
-
-          {/* Stats row */}
-          <box marginTop={1} flexDirection="row">
-            <box marginRight={4}>
+          {/* Stats row at top */}
+          <box marginBottom={1} flexDirection="row">
+            <box marginRight={3}>
+              <text fg="#666666">Current: </text>
+              <text attributes={TextAttributes.BOLD} fg="#00ff00">
+                {formatValue(primaryStats!.current)}
+              </text>
+            </box>
+            <box marginRight={3}>
               <text fg="#666666">Min: </text>
               <text fg="#ff6666">{formatValue(primaryStats!.min)}</text>
             </box>
-            <box marginRight={4}>
+            <box marginRight={3}>
               <text fg="#666666">Max: </text>
               <text fg="#66ff66">{formatValue(primaryStats!.max)}</text>
             </box>
-            <box marginRight={4}>
+            <box marginRight={3}>
               <text fg="#666666">Avg: </text>
               <text fg="#6666ff">{formatValue(primaryStats!.avg)}</text>
             </box>
@@ -155,74 +181,91 @@ export function FocusedPanel({ data, store }: FocusedPanelProps) {
             </box>
           </box>
 
-          {/* All series list */}
+          {/* Large sparkline chart - fills available space */}
+          <box flexGrow={1}>
+            <Sparkline
+              data={chartData}
+              height={chartHeight}
+              width={chartWidth}
+              color="#00ffff"
+              showAxis={true}
+            />
+          </box>
+
+          {/* All series list if multiple */}
           {allSeries.length > 1 && (
-            <box marginTop={2} flexDirection="column">
+            <box marginTop={1} flexDirection="column">
               <text attributes={TextAttributes.BOLD} fg="#ffffff">
                 All Series ({allSeries.length})
               </text>
-              {allSeries.map((series, i) => {
+              {allSeries.slice(0, 5).map((series, i) => {
                 const stats = calculateStats(series);
                 const legend = getLegend(series);
+                const colors = ["#00ffff", "#ff00ff", "#ffff00", "#00ff00", "#ff8800"];
                 return (
-                  <box key={i} marginTop={1}>
-                    <text fg="#888888">{legend.slice(0, 40).padEnd(42)}</text>
+                  <box key={i} flexDirection="row">
+                    <text fg={colors[i % colors.length]}>● </text>
+                    <text fg="#888888">{legend.slice(0, 30).padEnd(32)}</text>
                     <text fg="#00ff00">{formatValue(stats.current).padStart(10)}</text>
-                    <text fg="#666666">  min: </text>
-                    <text fg="#888888">{formatValue(stats.min).padStart(8)}</text>
-                    <text fg="#666666">  max: </text>
-                    <text fg="#888888">{formatValue(stats.max).padStart(8)}</text>
                   </box>
                 );
               })}
+              {allSeries.length > 5 && (
+                <text fg="#666666">  ...and {allSeries.length - 5} more</text>
+              )}
             </box>
           )}
         </box>
       )}
 
-      {/* Stat panel view */}
+      {/* Stat panel view - large centered value with chart below */}
       {!error && primarySeries && panel.type === "stat" && (
-        <box flexDirection="column" flexGrow={1} alignItems="center" justifyContent="center">
-          {/* Very large value */}
-          <text attributes={TextAttributes.BOLD} fg="#ffffff">
-            {formatValue(primaryStats!.current)}
-          </text>
-          
-          {/* History sparkline */}
-          <box marginTop={2}>
-            <Sparkline
-              data={chartData}
-              height={4}
-              width={50}
-              color="#00ffff"
+        <box flexDirection="column" flexGrow={1}>
+          {/* Large ASCII art value at top */}
+          <box alignItems="center" justifyContent="center" marginBottom={1}>
+            <BigValue 
+              value={formatLargeValue(primaryStats!.current)}
+              color={getThresholdColor(primaryStats!.current, panel.thresholds)}
+              font="huge"
             />
           </box>
-
-          <box marginTop={2} flexDirection="row">
+          
+          {/* Stats row */}
+          <box marginBottom={1} flexDirection="row" justifyContent="center">
             <box marginRight={4}>
               <text fg="#666666">Min: </text>
-              <text fg="#888888">{formatValue(primaryStats!.min)}</text>
+              <text fg="#ff6666">{formatValue(primaryStats!.min)}</text>
             </box>
             <box marginRight={4}>
               <text fg="#666666">Max: </text>
-              <text fg="#888888">{formatValue(primaryStats!.max)}</text>
+              <text fg="#66ff66">{formatValue(primaryStats!.max)}</text>
             </box>
             <box>
               <text fg="#666666">Avg: </text>
-              <text fg="#888888">{formatValue(primaryStats!.avg)}</text>
+              <text fg="#6666ff">{formatValue(primaryStats!.avg)}</text>
             </box>
+          </box>
+
+          {/* History sparkline - full width */}
+          <box flexGrow={1}>
+            <Sparkline
+              data={chartData}
+              height={Math.max(8, chartHeight - 16)}
+              width={chartWidth}
+              color="#00ffff"
+              showAxis={true}
+            />
           </box>
         </box>
       )}
 
-      {/* Query info */}
-      <box marginTop={2} borderStyle="single" borderColor="#333333" padding={1}>
-        <text fg="#666666">Queries: </text>
-        {panel.queries.map((q, i) => (
-          <text key={i} fg="#888888">
-            {i > 0 ? " | " : ""}{q.expr.slice(0, 60)}{q.expr.length > 60 ? "..." : ""}
-          </text>
-        ))}
+      {/* Query info at bottom */}
+      <box marginTop={1} borderStyle="single" borderColor="#333333" padding={1}>
+        <text fg="#666666">Query: </text>
+        <text fg="#888888">
+          {panel.queries[0]?.expr.slice(0, Math.max(50, terminalWidth - 20)) ?? "N/A"}
+          {(panel.queries[0]?.expr.length ?? 0) > terminalWidth - 20 ? "..." : ""}
+        </text>
       </box>
     </box>
   );

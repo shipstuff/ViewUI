@@ -1,5 +1,6 @@
 import React from "react";
 import { TextAttributes } from "@opentui/core";
+import { useTerminalDimensions } from "@opentui/react";
 import { Panel } from "../Panel.tsx";
 import { Sparkline } from "../charts/Sparkline.tsx";
 import type { PanelData } from "../../store/dashboard-store.ts";
@@ -72,8 +73,26 @@ function getLegend(series: TimeSeries): string {
   return labelParts || "value";
 }
 
+/**
+ * Calculate responsive chart dimensions based on terminal size
+ */
+function getChartDimensions(terminalWidth: number, numColumns: number) {
+  // Estimate panel width based on terminal and column count
+  // Account for: borders (2), padding (2), axis labels (6)
+  const panelWidth = Math.floor(terminalWidth / numColumns) - 4;
+  const chartWidth = Math.max(30, panelWidth - 12);
+  const chartHeight = 8; // Taller charts for better visibility
+  
+  return { chartWidth, chartHeight };
+}
+
 export function TimeSeriesRenderer({ data, focused = false }: TimeSeriesRendererProps) {
   const { panel, results, error } = data;
+  const { width: terminalWidth } = useTerminalDimensions();
+  
+  // Calculate responsive dimensions
+  const numColumns = terminalWidth < 80 ? 1 : terminalWidth < 150 ? 2 : 3;
+  const { chartWidth, chartHeight } = getChartDimensions(terminalWidth, numColumns);
 
   if (error) {
     return (
@@ -106,55 +125,60 @@ export function TimeSeriesRenderer({ data, focused = false }: TimeSeriesRenderer
 
   return (
     <Panel title={panel.title} focused={focused}>
-      <box flexDirection="column">
-        {/* Current value */}
-        <box marginBottom={1}>
-          <text attributes={TextAttributes.BOLD} fg="#ffffff">
-            Current:{" "}
-          </text>
-          <text fg="#00ff00">{formatValue(primaryStats.current)}</text>
+      <box flexDirection="column" flexGrow={1}>
+        {/* Current value - prominent display */}
+        <box marginBottom={1} flexDirection="row" justifyContent="space-between">
+          <box>
+            <text fg="#666666">Current: </text>
+            <text attributes={TextAttributes.BOLD} fg="#00ff00">
+              {formatValue(primaryStats.current)}
+            </text>
+          </box>
         </box>
 
-        {/* Sparkline chart */}
+        {/* Large Sparkline chart */}
         <Sparkline
           data={chartData}
-          height={3}
-          width={35}
+          height={chartHeight}
+          width={chartWidth}
           color="#00ffff"
+          showAxis={true}
         />
 
-        {/* Stats row */}
-        <box marginTop={1} flexDirection="row">
-          <box marginRight={2}>
-            <text fg="#666666">min: </text>
+        {/* Stats row - cleaner layout */}
+        <box marginTop={1} flexDirection="row" justifyContent="space-between">
+          <box>
+            <text fg="#ff6666">min: </text>
             <text fg="#888888">{formatValue(primaryStats.min)}</text>
           </box>
-          <box marginRight={2}>
-            <text fg="#666666">max: </text>
+          <box>
+            <text fg="#66ff66">max: </text>
             <text fg="#888888">{formatValue(primaryStats.max)}</text>
           </box>
           <box>
-            <text fg="#666666">avg: </text>
+            <text fg="#6666ff">avg: </text>
             <text fg="#888888">{formatValue(primaryStats.avg)}</text>
           </box>
         </box>
 
-        {/* Additional series */}
+        {/* Additional series - compact list */}
         {allSeries.length > 1 && (
           <box marginTop={1} flexDirection="column">
-            <text fg="#666666">Series:</text>
+            <text fg="#888888" attributes={TextAttributes.BOLD}>Series:</text>
             {allSeries.slice(0, 4).map((series, i) => {
               const stats = calculateStats(series);
               const legend = getLegend(series);
+              const colors = ["#00ffff", "#ff00ff", "#ffff00", "#00ff00"];
               return (
-                <box key={i}>
-                  <text fg="#888888">{legend.slice(0, 20).padEnd(20)}</text>
+                <box key={i} flexDirection="row">
+                  <text fg={colors[i % colors.length]}>● </text>
+                  <text fg="#888888">{legend.slice(0, 25).padEnd(26)}</text>
                   <text fg="#00ff00">{formatValue(stats.current)}</text>
                 </box>
               );
             })}
             {allSeries.length > 4 && (
-              <text fg="#666666">...and {allSeries.length - 4} more</text>
+              <text fg="#666666">  ...and {allSeries.length - 4} more</text>
             )}
           </box>
         )}
